@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gym Log</title>
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Gym Log">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<style>
+/* Layout idea: one narrow column built for a phone at the gym. Home, one exercise at a time, then a summary. */
+:root {
+  --bg: #000000;
+  --surface: #0e0e10;
+  --surface-2: #17171a;
+  --line: #26262b;
+  --text: #f2f2f0;
+  --muted: #8d8d94;
+  --accent: #ff5a1f;
+  --accent-ink: #120600;
+  --good: #3ddc84;
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-tap-highlight-color: transparent;
+}
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+#app { max-width: 520px; margin: 0 auto; padding: 20px 16px 48px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: .02em; margin: 0; text-wrap: balance; }
+h1 { font-size: 40px; line-height: 1; }
+h2 { font-size: 30px; line-height: 1.05; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.back { background: none; border: 0; padding: 8px 0; color: var(--muted); font-size: 15px; }
+.back:hover { color: var(--text); }
+
+/* Home */
+.sessions { display: grid; gap: 12px; margin-top: 20px; }
+.session-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; text-align: left; padding: 18px 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+}
+.session-card:hover { border-color: var(--accent); }
+.session-card h2 { font-size: 28px; }
+.session-card .go { color: var(--accent); font-family: var(--display); font-size: 22px; text-transform: uppercase; }
+.resume { border-color: var(--accent); }
+.section-label { margin: 32px 0 8px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.history { display: grid; gap: 8px; }
+.history-row {
+  display: flex; justify-content: space-between; gap: 12px; align-items: baseline;
+  width: 100%; text-align: left; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+}
+.history-row:hover { border-color: var(--muted); }
+
+/* Session */
+.progress { display: flex; gap: 6px; margin: 4px 0 20px; }
+.progress button { flex: 1; height: 8px; padding: 0; border: 0; border-radius: 4px; background: var(--surface-2); }
+.progress button.done { background: var(--good); }
+.progress button.current { background: var(--accent); }
+.step { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.last-time { margin: 6px 0 16px; }
+
+.warmup {
+  display: flex; align-items: center; gap: 12px; width: 100%; text-align: left;
+  padding: 14px; margin-bottom: 20px; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px;
+}
+.warmup.on { border-style: solid; border-color: var(--good); }
+
+.set-head, .set-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 48px; gap: 10px; align-items: start; }
+.set-head { align-items: end; }
+.fig-wrap { margin: 0 0 18px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.fig { display: block; width: 100%; height: 120px; }
+.fig .body { fill: none; stroke: var(--text); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.fig .head { fill: none; stroke: var(--text); stroke-width: 4; }
+.fig .kit { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+.fig .ground { stroke: var(--line); stroke-width: 2; }
+.set-head { padding: 0 0 6px; font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.set-row { padding: 10px 0; border-top: 1px solid var(--line); }
+.set-no { height: 52px; display: grid; place-items: center start; font-family: var(--display); font-size: 26px; color: var(--muted); }
+.set-row .tick { margin-top: 2px; }
+.field { position: relative; }
+.field input {
+  width: 100%; height: 52px; padding: 0 34px 0 12px; text-align: center; font-size: 22px; font-weight: 600;
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+  -moz-appearance: textfield; appearance: textfield;
+}
+.field input::-webkit-outer-spin-button, .field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.field input:focus { border-color: var(--accent); outline: none; }
+.field .unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 13px; color: var(--muted); pointer-events: none; }
+.target { display: block; margin-top: 3px; text-align: center; font-size: 12px; color: var(--muted); }
+.tick {
+  width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--line); background: transparent;
+  display: grid; place-items: center; color: transparent; font-size: 24px; line-height: 1;
+}
+.tick.on { background: var(--good); border-color: var(--good); color: #00140a; }
+.set-row.done .field input { border-color: #1d5b3a; }
+
+.nav { margin-top: 24px; }
+.nav-inner { display: flex; gap: 10px; }
+#err { display: none; margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 10px; color: var(--accent); font-size: 13px; }
+.btn {
+  flex: 1; height: 54px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2);
+  font-family: var(--display); font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .35; cursor: default; }
+.btn.ghost { flex: 0 0 auto; padding: 0 20px; }
+.link-danger { background: none; border: 0; color: var(--muted); padding: 16px 0; font-size: 14px; text-decoration: underline; }
+
+/* Summary */
+.tiles { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 20px 0; }
+.tile { padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tile .v { font-family: var(--display); font-size: 36px; font-weight: 700; line-height: 1.05; }
+.tile .l { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.delta.up { color: var(--good); }
+.delta.down { color: var(--muted); }
+.sum-ex { padding: 14px 0; border-top: 1px solid var(--line); }
+.sum-ex .name { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.sum-ex .name strong { font-weight: 600; }
+.sets-line { margin-top: 4px; color: var(--muted); }
+.pb { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 99px; background: var(--good); color: #00140a; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; vertical-align: middle; }
+.notice { margin-top: 24px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--muted); font-size: 13px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .tick, .btn, .session-card { transition: background-color .12s, border-color .12s; }
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600&family=Barlow+Condensed:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app"></div>
+<div id="err" role="alert" style="max-width:520px;margin:0 auto 24px"></div>
+
+<script>
+/* ---------- Plan ---------- */
+const PLAN = {
+  lower: { name: 'Lower Body', sub: 'Quads, hams, calves', ex: [
+    ['Back Squat', [10, 8, 6]],
+    ['Machine Hack Squat', [10, 8, 6], 'Feet close, pointing forwards'],
+    ['Leg Extension', [12, 10, 8]],
+    ['Lying Leg Curl', [12, 10, 8]],
+    ['Hyper-Extensions', [12, 10, 8]],
+    ['Machine Calf Raise', [15, 12, 10]],
+    ['Seated Calf Raise', [15, 12, 10]]
+  ]},
+  push: { name: 'Push', sub: 'Chest, shoulders, triceps, abs', ex: [
+    ['Bench Press', [10, 8, 6]],
+    ['Incline Dumbbell Press', [10, 8, 6]],
+    ['Seated Dumbbell Shoulder Press', [10, 8, 6]],
+    ['Cable Side Lateral Raise', [12, 10, 8], 'Behind the back'],
+    ['Lying Triceps Extension', [12, 10, 8]],
+    ['Triceps Press-Down', [12, 10, 8]],
+    ["Captain's Chair Leg Raise", [20, 20, 20], 'Up to 20 reps']
+  ]},
+  pull: { name: 'Pull', sub: 'Back, rear delts, traps, biceps', ex: [
+    ['Close Grip Low Pulley Row', [10, 8, 6]],
+    ['Wide Grip Pull Down', [10, 8, 6]],
+    ['Medium Grip T-bar Row', [10, 8, 6]],
+    ['Machine Rear Delt Flyes', [12, 10, 8]],
+    ['Shrugs', [15, 12, 10]],
+    ['Close Grip Barbell Curl', [12, 10, 8]],
+    ['Incline Curl', [12, 10, 8]],
+    ['Hammer Curl', [12, 10, 8]]
+  ]}
+};
+const KEYS = Object.keys(PLAN);
+
+/* ---------- Storage: this phone's browser (localStorage) ---------- */
+const LS_KEY = 'gymlog.v1';
+let data = { logs: [], draft: null };
+const storageNote = 'Your workouts are saved on this phone only. Use Export CSV now and then as a backup.';
+
+function readLocal() {
+  try { const v = JSON.parse(localStorage.getItem(LS_KEY)); if (v && Array.isArray(v.logs)) return v; } catch (e) {}
+  return null;
+}
+function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) {} }
+function initStorage() {
+  const local = readLocal();
+  if (local) data = local;
+  if (navigator.storage && navigator.storage.persist) { navigator.storage.persist().catch(() => {}); }
+  render();
+}
+
+/* ---------- CSV export ---------- */
+function csvCell(v) { const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function exportCsv() {
+  const rows = [['date', 'time', 'session', 'exercise', 'set', 'target_reps', 'reps', 'kg', 'done', 'cardio_warmup']];
+  data.logs.forEach(l => {
+    const dt = new Date(l.finishedAt);
+    const date = dt.toISOString().slice(0, 10);
+    const time = dt.toTimeString().slice(0, 5);
+    l.exercises.forEach(e => e.sets.forEach((s, i) => rows.push([date, time, l.name, e.name, i + 1, s.target, s.reps, s.kg, s.done ? 1 : 0, l.warmup ? 1 : 0])));
+  });
+  const blob = new Blob([rows.map(r => r.map(csvCell).join(',')).join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'gym-log-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- Helpers ---------- */
+const $app = document.getElementById('app');
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtDate = ts => new Date(ts).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const fmtKg = n => (Math.round(n * 10) / 10).toLocaleString('en-GB') ;
+const num = v => { const n = parseFloat(String(v).replace(',', '.')); return isFinite(n) ? n : 0; };
+
+let view = { name: 'home' };   // home | session | summary
+let discardArmed = false;
+
+function lastLog(key, beforeTs) {
+  const logs = data.logs.filter(l => l.key === key && (!beforeTs || l.finishedAt < beforeTs));
+  return logs.length ? logs[logs.length - 1] : null;
+}
+function exerciseHistory(name, beforeTs) {
+  let best = 0;
+  data.logs.forEach(l => {
+    if (beforeTs && l.finishedAt >= beforeTs) return;
+    const ex = l.exercises.find(e => e.name === name);
+    if (ex) ex.sets.forEach(s => { if (s.done && s.kg > best) best = s.kg; });
+  });
+  return best;
+}
+function volume(log) {
+  return log.exercises.reduce((t, e) => t + e.sets.reduce((a, s) => a + (s.done ? s.kg * s.reps : 0), 0), 0);
+}
+
+function startSession(key) {
+  const prev = lastLog(key);
+  const sets = PLAN[key].ex.map(([name, targets]) => {
+    const prevEx = prev && prev.exercises.find(e => e.name === name);
+    return targets.map((t, i) => ({
+      reps: t,
+      kg: prevEx && prevEx.sets[i] && prevEx.sets[i].kg ? prevEx.sets[i].kg : '',
+      done: false
+    }));
+  });
+  data.draft = { key, startedAt: Date.now(), warmup: false, step: 0, sets };
+  save();
+  view = { name: 'session' };
+  discardArmed = false;
+  render();
+  window.scrollTo(0, 0);
+}
+function finishSession() {
+  const d = data.draft;
+  const plan = PLAN[d.key];
+  const log = {
+    id: 'w' + Date.now(), key: d.key, name: plan.name,
+    startedAt: d.startedAt, finishedAt: Date.now(), warmup: d.warmup,
+    exercises: plan.ex.map(([name, targets], i) => ({
+      name,
+      sets: d.sets[i].map((s, j) => ({ target: targets[j], reps: Math.max(0, Math.round(num(s.reps))), kg: num(s.kg), done: s.done }))
+    }))
+  };
+  data.logs.push(log);
+  data.draft = null;
+  save();
+  view = { name: 'summary', id: log.id };
+  render();
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Stick figures (static, one per exercise) ---------- */
+const L = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+const C = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}"/>`;
+const STAND = [[100, 34], [100, 66], [100, 87], [100, 108]];
+const FLAT_BENCH = [L(24, 84, 100, 84), L(30, 84, 30, 108), L(94, 84, 94, 108)];
+const INCLINE_BENCH = [L(58, 60, 90, 88), L(90, 88, 106, 88), L(98, 88, 98, 108)];
+const INCLINE_BODY = [[68, 54], [92, 80], [116, 76], [112, 106]];
+const POSES = {
+  'Back Squat': { h: [102, 40], b: [[[98, 50], [84, 80], [114, 78], [102, 108]], [[98, 52], [88, 62], [96, 54]]], k: [C(97, 51, 10)] },
+  'Machine Hack Squat': { h: [97, 32], b: [[[94, 42], [82, 74], [106, 86], [92, 108]], [[94, 44], [92, 58], [102, 64]]], k: [L(96, 20, 65, 104)] },
+  'Leg Extension': { h: [82, 38], b: [[[82, 48], [84, 80], [112, 80], [140, 66]], [[83, 52], [90, 64], [98, 78]]], k: [L(74, 40, 74, 86), L(74, 86, 104, 86), L(136, 60, 146, 72)] },
+  'Lying Leg Curl': { h: [34, 78], b: [[[46, 84], [92, 84], [122, 84], [104, 58]], [[48, 86], [56, 92], [66, 92]]], k: [L(24, 92, 134, 92), L(30, 92, 30, 108), L(128, 92, 128, 108)] },
+  'Hyper-Extensions': { h: [58, 44], b: [[[68, 52], [100, 72], [136, 100]], [[70, 54], [78, 64], [86, 58]]], k: [L(90, 84, 118, 104), L(110, 98, 110, 108)] },
+  'Machine Calf Raise': { h: [100, 22], b: [[[100, 32], [100, 64], [100, 86], [102, 100], [112, 107]], [[100, 36], [93, 48], [90, 58]]], k: [L(90, 32, 110, 32), L(94, 108, 124, 108)] },
+  'Seated Calf Raise': { h: [80, 36], b: [[[80, 46], [80, 78], [112, 76], [118, 98], [128, 106]], [[80, 50], [90, 64], [102, 68]]], k: [L(102, 68, 116, 70), L(70, 82, 96, 82)] },
+  'Bench Press': { h: [32, 76], b: [[[46, 76], [90, 76], [114, 66], [112, 106]], [[50, 76], [50, 64], [50, 52]]], k: [C(50, 50, 9), ...FLAT_BENCH] },
+  'Incline Dumbbell Press': { h: [60, 46], b: [INCLINE_BODY, [[70, 56], [72, 40], [74, 24]]], k: [L(66, 24, 82, 24), ...INCLINE_BENCH] },
+  'Seated Dumbbell Shoulder Press': { h: [84, 40], b: [[[84, 50], [84, 82], [112, 82], [112, 108]], [[84, 52], [92, 36], [88, 20]]], k: [L(80, 20, 96, 20), L(76, 44, 76, 88), L(76, 88, 106, 88)] },
+  'Cable Side Lateral Raise': { h: [100, 24], b: [[[100, 34], [100, 66], [90, 88], [88, 108]], [[100, 66], [110, 88], [112, 108]], [[100, 38], [120, 40], [142, 40]], [[100, 38], [96, 52], [96, 66]]], k: [C(166, 100, 5), L(142, 40, 166, 100)] },
+  'Lying Triceps Extension': { h: [32, 76], b: [[[46, 76], [90, 76], [114, 66], [112, 106]], [[50, 76], [52, 52], [38, 58]]], k: [C(38, 58, 7), ...FLAT_BENCH] },
+  'Triceps Press-Down': { h: [96, 24], b: [[[97, 34], [100, 66], [100, 87], [100, 108]], [[98, 38], [98, 54], [112, 66]]], k: [L(108, 68, 120, 68), L(112, 66, 130, 12), C(130, 10, 4)] },
+  "Captain's Chair Leg Raise": { h: [88, 22], b: [[[88, 32], [88, 64], [118, 62], [146, 58]], [[88, 36], [98, 52], [110, 50]]], k: [L(78, 20, 78, 100), L(92, 56, 114, 56)] },
+  'Close Grip Low Pulley Row': { h: [66, 42], b: [[[68, 52], [70, 84], [98, 78], [122, 92]], [[68, 56], [62, 68], [84, 70]]], k: [L(124, 82, 124, 108), L(84, 70, 156, 96), L(56, 88, 80, 88)] },
+  'Wide Grip Pull Down': { h: [84, 44], b: [[[86, 54], [90, 86], [116, 80], [116, 108]], [[86, 56], [104, 54], [98, 38]]], k: [L(92, 38, 104, 38), L(98, 38, 110, 10), C(110, 8, 4), L(80, 90, 104, 90)] },
+  'Medium Grip T-bar Row': { h: [63, 50], b: [[[72, 54], [110, 70], [104, 90], [106, 108]], [[74, 56], [80, 70], [70, 80]]], k: [L(24, 106, 72, 80), C(60, 87, 8)] },
+  'Machine Rear Delt Flyes': { h: [100, 28], b: [[[100, 38], [100, 70], [88, 92], [88, 108]], [[100, 70], [112, 92], [112, 108]], [[100, 44], [150, 44]], [[100, 44], [50, 44]]], k: [C(150, 44, 4), C(50, 44, 4)] },
+  'Shrugs': { h: [100, 22], b: [STAND, [[100, 34], [94, 50], [92, 70]]], k: [L(86, 72, 98, 72), L(120, 40, 120, 22), L(120, 22, 115, 28), L(120, 22, 125, 28)] },
+  'Close Grip Barbell Curl': { h: [100, 24], b: [STAND, [[100, 38], [106, 56], [118, 40]]], k: [C(118, 40, 7)] },
+  'Incline Curl': { h: [60, 46], b: [INCLINE_BODY, [[70, 56], [72, 76], [90, 68]]], k: [L(90, 62, 90, 74), ...INCLINE_BENCH] },
+  'Hammer Curl': { h: [100, 24], b: [STAND, [[100, 38], [106, 56], [118, 40]]], k: [L(118, 30, 118, 50), L(114, 30, 122, 30), L(114, 50, 122, 50)] }
+};
+function figureHTML(name) {
+  const p = POSES[name];
+  if (!p) return '';
+  const body = p.b.map(pts => `<polyline points="${pts.map(q => q.join(',')).join(' ')}"/>`).join('');
+  return `<div class="fig-wrap"><svg class="fig" viewBox="0 0 200 120" role="img" aria-label="Stick figure showing the ${esc(name)}">
+    <line class="ground" x1="10" y1="108" x2="190" y2="108"/>
+    <g class="kit">${p.k.join('')}</g>
+    <g class="body">${body}</g>
+    <circle class="head" cx="${p.h[0]}" cy="${p.h[1]}" r="8"/></svg></div>`;
+}
+
+/* ---------- Views ---------- */
+function renderHome() {
+  const d = data.draft;
+  const cards = KEYS.map(k => {
+    const p = PLAN[k];
+    const last = lastLog(k);
+    const resuming = d && d.key === k;
+    return `<button class="session-card ${resuming ? 'resume' : ''}" data-open="${k}">
+      <span><h2>${esc(p.name)}</h2>
+      <span class="muted small">${esc(p.sub)}</span><br>
+      <span class="muted small">${resuming ? 'Workout in progress' : last ? 'Last done ' + fmtDate(last.finishedAt) : 'Not done yet'}</span></span>
+      <span class="go">${resuming ? 'Resume' : 'Start'}</span></button>`;
+  }).join('');
+  const recent = data.logs.slice(-6).reverse().map(l =>
+    `<button class="history-row" data-view="${l.id}"><span>${esc(l.name)} <span class="muted small">${fmtDate(l.finishedAt)}</span></span><span class="num muted small">${fmtKg(volume(l))} kg</span></button>`
+  ).join('');
+  return `<div class="top"><h1>Gym Log</h1></div>
+    <p class="muted" style="margin:0">Start with 10 minutes of cardio, then pick today's session.</p>
+    <div class="sessions">${cards}</div>
+    ${recent ? `<div class="section-label">Recent sessions</div><div class="history">${recent}</div>` : ''}
+    <div class="section-label">Backup</div>
+    <button class="btn" data-export="1" style="width:100%" ${data.logs.length ? '' : 'disabled'}>Export CSV</button>
+    <div class="notice">${esc(storageNote)}</div>`;
+}
+
+function renderSession() {
+  const d = data.draft;
+  if (!d) { view = { name: 'home' }; return renderHome(); }
+  const plan = PLAN[d.key];
+  const total = plan.ex.length;
+  const i = d.step;
+  const [name, targets, note] = plan.ex[i];
+  const prev = lastLog(d.key);
+  const prevEx = prev && prev.exercises.find(e => e.name === name);
+  const prevDone = prevEx ? prevEx.sets.filter(s => s.done) : [];
+  const prevLine = prevDone.length
+    ? 'Last time: ' + prevEx.sets.filter(s => s.done).map(s => (s.kg ? fmtKg(s.kg) + ' kg' : 'BW') + ' x ' + s.reps).join(', ')
+    : 'No previous session logged';
+
+  const dots = plan.ex.map((_, n) => {
+    const allDone = d.sets[n].every(s => s.done);
+    return `<button aria-label="Go to exercise ${n + 1}" data-goto="${n}" class="${n === i ? 'current' : allDone ? 'done' : ''}"></button>`;
+  }).join('');
+
+  const rows = d.sets[i].map((s, j) => `
+    <div class="set-row ${s.done ? 'done' : ''}">
+      <span class="set-no num">${j + 1}</span>
+      <div><div class="field"><input id="reps-${i}-${j}" class="num" type="number" inputmode="numeric" min="0" step="1" value="${esc(s.reps)}" data-f="reps" data-j="${j}" aria-label="Set ${j + 1} reps"><span class="unit">reps</span></div>
+        <span class="target num">target ${targets[j]}</span></div>
+      <div><div class="field"><input id="kg-${i}-${j}" class="num" type="number" inputmode="decimal" min="0" step="0.5" placeholder="0" value="${esc(s.kg)}" data-f="kg" data-j="${j}" aria-label="Set ${j + 1} weight in kilograms"><span class="unit">kg</span></div></div>
+      <button class="tick ${s.done ? 'on' : ''}" data-tick="${j}" aria-label="Mark set ${j + 1} done" aria-pressed="${s.done}">&#10003;</button>
+    </div>`).join('');
+
+  const isLast = i === total - 1;
+  const warm = i === 0 ? `<button class="warmup ${d.warmup ? 'on' : ''}" data-warm="1" aria-pressed="${d.warmup}">
+      <span class="tick ${d.warmup ? 'on' : ''}" style="width:34px;height:34px;font-size:18px;flex:none">&#10003;</span>
+      <span><strong>10 min cardio warm-up</strong><br><span class="muted small">Tick when done</span></span></button>` : '';
+
+  return `<div class="top"><button class="back" data-home="1">&larr; Sessions</button><span class="muted small num">${new Date(d.startedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} start</span></div>
+    <div class="step">${esc(plan.name)} &middot; Exercise ${i + 1} of ${total}</div>
+    <div class="progress">${dots}</div>
+    ${warm}
+    <h2>${esc(name)}</h2>
+    ${note ? `<div class="muted small">${esc(note)}</div>` : ''}
+    <div class="muted small last-time num">${esc(prevLine)}</div>
+    ${figureHTML(name)}
+    <div class="set-head"><span>Set</span><span style="text-align:center">Reps</span><span style="text-align:center">Weight</span><span></span></div>
+    ${rows}
+    <div style="text-align:center"><button class="link-danger" data-discard="1">${discardArmed ? 'Tap again to discard this workout' : 'Discard workout'}</button></div>
+    <div class="nav"><div class="nav-inner">
+      <button class="btn ghost" data-prev="1" ${i === 0 ? 'disabled' : ''}>Back</button>
+      ${isLast ? '<button class="btn primary" data-finish="1">Finish workout</button>' : '<button class="btn primary" data-next="1">Next exercise</button>'}
+    </div></div>`;
+}
+
+function renderSummary() {
+  const log = data.logs.find(l => l.id === view.id);
+  if (!log) { view = { name: 'home' }; return renderHome(); }
+  const prev = lastLog(log.key, log.finishedAt);
+  const vol = volume(log);
+  const prevVol = prev ? volume(prev) : null;
+  const doneSets = log.exercises.reduce((t, e) => t + e.sets.filter(s => s.done).length, 0);
+  const totalSets = log.exercises.reduce((t, e) => t + e.sets.length, 0);
+  const reps = log.exercises.reduce((t, e) => t + e.sets.reduce((a, s) => a + (s.done ? s.reps : 0), 0), 0);
+  const mins = Math.max(1, Math.round((log.finishedAt - log.startedAt) / 60000));
+  let delta = '';
+  if (prevVol) {
+    const diff = vol - prevVol;
+    const pct = Math.round((diff / prevVol) * 100);
+    delta = `<div class="delta ${diff >= 0 ? 'up' : 'down'} small num">${diff >= 0 ? '+' : '-'}${fmtKg(Math.abs(diff))} kg (${diff >= 0 ? '+' : ''}${pct}%) vs last ${esc(log.name)}</div>`;
+  }
+  const list = log.exercises.map(e => {
+    const done = e.sets.filter(s => s.done);
+    const best = done.reduce((m, s) => Math.max(m, s.kg), 0);
+    const pb = best > 0 && best > exerciseHistory(e.name, log.finishedAt) && data.logs.some(l => l.finishedAt < log.finishedAt && l.exercises.some(x => x.name === e.name));
+    const evol = done.reduce((a, s) => a + s.kg * s.reps, 0);
+    return `<div class="sum-ex"><div class="name"><strong>${esc(e.name)}${pb ? '<span class="pb">Heaviest yet</span>' : ''}</strong><span class="muted small num">${evol ? fmtKg(evol) + ' kg' : ''}</span></div>
+      <div class="sets-line num">${done.length ? done.map(s => (s.kg ? fmtKg(s.kg) + ' kg' : 'BW') + ' x ' + s.reps).join(' &middot; ') : 'No sets logged'}</div></div>`;
+  }).join('');
+
+  return `<div class="top"><button class="back" data-home="1">&larr; Sessions</button><span class="muted small">${fmtDate(log.finishedAt)}</span></div>
+    <h1>${esc(log.name)}</h1>
+    <div class="muted">${log.warmup ? 'Cardio warm-up done' : 'No cardio logged'}</div>
+    <div class="tiles">
+      <div class="tile"><div class="v num">${fmtKg(vol)}</div><div class="l">Total volume (kg)</div></div>
+      <div class="tile"><div class="v num">${doneSets}/${totalSets}</div><div class="l">Sets done</div></div>
+      <div class="tile"><div class="v num">${reps}</div><div class="l">Total reps</div></div>
+      <div class="tile"><div class="v num">${mins}</div><div class="l">Minutes</div></div>
+    </div>
+    ${delta}
+    <div class="section-label">Exercises</div>
+    ${list}`;
+}
+
+function render() {
+  const active = document.activeElement;
+  const keep = active && active.id ? { id: active.id, s: active.selectionStart, e: active.selectionEnd } : null;
+  $app.innerHTML = view.name === 'session' ? renderSession() : view.name === 'summary' ? renderSummary() : renderHome();
+  if (keep) { const el = document.getElementById(keep.id); if (el) { el.focus(); try { el.setSelectionRange(keep.s, keep.e); } catch (e) {} } }
+}
+
+/* ---------- Events ---------- */
+$app.addEventListener('click', ev => {
+  const t = ev.target.closest('button');
+  if (!t) return;
+  const d = data.draft;
+  if (t.dataset.open) {
+    if (d && d.key !== t.dataset.open) {
+      // Another workout is in progress: resume it rather than losing it
+      view = { name: 'session' }; render(); return;
+    }
+    if (d) { view = { name: 'session' }; render(); } else startSession(t.dataset.open);
+  } else if (t.dataset.view) { view = { name: 'summary', id: t.dataset.view }; render(); window.scrollTo(0, 0); }
+  else if (t.dataset.home) { view = { name: 'home' }; discardArmed = false; render(); }
+  else if (t.dataset.tick !== undefined) { const s = d.sets[d.step][+t.dataset.tick]; s.done = !s.done; save(); render(); }
+  else if (t.dataset.warm) { d.warmup = !d.warmup; save(); render(); }
+  else if (t.dataset.next) { d.step = Math.min(d.step + 1, PLAN[d.key].ex.length - 1); discardArmed = false; save(); render(); window.scrollTo(0, 0); }
+  else if (t.dataset.prev) { d.step = Math.max(d.step - 1, 0); discardArmed = false; save(); render(); window.scrollTo(0, 0); }
+  else if (t.dataset.goto !== undefined) { d.step = +t.dataset.goto; discardArmed = false; save(); render(); window.scrollTo(0, 0); }
+  else if (t.dataset.export) { exportCsv(); }
+  else if (t.dataset.finish) { finishSession(); }
+  else if (t.dataset.discard) {
+    if (!discardArmed) { discardArmed = true; render(); }
+    else { data.draft = null; discardArmed = false; save(); view = { name: 'home' }; render(); }
+  }
+});
+$app.addEventListener('input', ev => {
+  const el = ev.target;
+  if (!el.dataset || !el.dataset.f || !data.draft) return;
+  const s = data.draft.sets[data.draft.step][+el.dataset.j];
+  s[el.dataset.f] = el.value;
+  save();
+});
+
+window.addEventListener('error', ev => {
+  const box = document.getElementById('err');
+  box.style.display = 'block';
+  box.textContent = 'Something went wrong: ' + (ev.message || 'unknown error') + '.';
+});
+initStorage();
+if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
+</script>
+</body>
+</html>
